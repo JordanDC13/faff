@@ -135,9 +135,9 @@ export function SwipeFeed({
         )}
       </div>
 
-      {/* Card area */}
-      <div className="flex-1 relative px-5">
-        <div className="relative" style={{ height: 'min(520px, 68vh)' }}>
+      {/* Card area — min-h-0 lets flex-1 shrink below its content so cards never overlap the buttons */}
+      <div className="flex-1 min-h-0 relative px-5">
+        <div className="relative h-full" style={{ maxHeight: '520px' }}>
           {isOutOfCards && !showWildcard ? (
             <EmptyState onReset={onReset} />
           ) : showWildcard ? (
@@ -187,9 +187,9 @@ export function SwipeFeed({
         </div>
       </div>
 
-      {/* Action buttons */}
+      {/* Action buttons — relative + z-30 keeps them above the card stack regardless of overflow */}
       {!isOutOfCards && !showWildcard && (
-        <div className="flex items-center justify-center gap-8 px-5 py-5 flex-shrink-0">
+        <div className="relative z-30 flex items-center justify-center gap-8 px-5 py-5 flex-shrink-0">
           <ActionButton icon={<X size={28} />}     label="Nope" variant="stone"  onClick={() => triggerSwipe('left')}  disabled={!canSwipe} />
           <SavedBadge count={saved.length} />
           <ActionButton icon={<Heart size={28} />} label="Yes!" variant="orange" onClick={() => triggerSwipe('right')} disabled={!canSwipe} />
