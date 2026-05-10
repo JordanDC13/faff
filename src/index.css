@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background-color: #FDF6EC;
+    color: #2D2D2D;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-orange text-cream font-body font-medium px-6 py-3 rounded-full
+           transition-all duration-200 active:scale-95 select-none
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply text-ink font-body font-medium px-6 py-3 rounded-full
+           transition-all duration-200 active:scale-95 select-none
+           hover:bg-stone-light disabled:opacity-40;
+  }
+
+  .card-chip {
+    @apply bg-white/20 backdrop-blur-sm text-cream text-xs font-body font-medium
+           px-2.5 py-1 rounded-full border border-white/20;
+  }
+
+  .input-base {
+    @apply w-full bg-white border border-stone-light rounded-2xl px-4 py-3
+           font-body text-ink placeholder-stone focus:outline-none focus:border-orange
+           transition-colors duration-200;
+  }
+}
+
+.swipe-right-glow {
+  box-shadow: 0 0 40px rgba(232, 82, 26, 0.5), 0 8px 32px rgba(45,45,45,0.15);
+}
+
+.swipe-left-glow {
+  box-shadow: 0 0 40px rgba(196, 185, 168, 0.6), 0 8px 32px rgba(45,45,45,0.15);
+}
+
+.safe-bottom {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.safe-top {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+
+@keyframes dot-pop {
+  0% { transform: scale(0.8); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.dot-active {
+  animation: dot-pop 0.2s ease-out;
+}
