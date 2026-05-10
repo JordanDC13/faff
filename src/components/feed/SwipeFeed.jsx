@@ -22,7 +22,7 @@ export function SwipeFeed({
   swipeHistory,
   startWithWildcard = false,
 }) {
-  const [topIndex, setTopIndex] = useState(activities.length - 1)
+  const [topIndex, setTopIndex] = useState(-1)
   const [leftStreak, setLeftStreak] = useState(0)
   const [showWildcard, setShowWildcard] = useState(startWithWildcard)
   const [selectedActivity, setSelectedActivity] = useState(null)
