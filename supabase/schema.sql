@@ -42,6 +42,9 @@ create table if not exists public.swipe_events (
   energy_level_at_time int check (energy_level_at_time between 1 and 5),
   budget_at_time int,
   time_of_day int check (time_of_day between 0 and 23),
+  feedback_reason text check (feedback_reason in (
+    'not_my_thing', 'wrong_energy', 'too_far', 'too_expensive', 'never_show'
+  )),
   created_at timestamptz default now()
 );
 
@@ -80,8 +83,14 @@ create table if not exists public.user_preference_profiles (
   favourite_tags text[],
   streak_count int default 0,
   total_activities_completed int default 0,
+  settings_json jsonb default '{}',
   updated_at timestamptz default now()
 );
+
+-- Allow updating feedback_reason on own swipe events
+create policy "Users can update own swipe events"
+  on public.swipe_events for update
+  using (auth.uid() = user_id);
 
 alter table public.user_preference_profiles enable row level security;
 

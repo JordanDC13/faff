@@ -815,39 +815,83 @@ export const VIBE_OPTIONS = [
   { value: 'creative', label: 'Creative', emoji: '🎨' },
 ]
 
-// Filter and rank activities based on user's context snapshot
-export function rankActivities(activities, context) {
-  const { energy, budget, vibe, solo_social } = context
+// ── Hard filtering ────────────────────────────────────────────────────────────
+// Returns only activities that pass all mandatory constraints.
+export function filterActivities(activities, context, settings = {}) {
+  const effectiveBudget = context.budgetOverride ?? settings.budget_daily ?? 50
+  const excludedIds = settings.excluded_activity_ids ?? []
+  const excludedCats = settings.excluded_categories ?? []
 
-  return [...activities]
+  // Vibe → solo/social mapping (vibe encodes this in the simplified context)
+  const soloSocialFromVibe =
+    context.vibe === 'solo' ? 'solo'
+    : context.vibe === 'social' ? 'social'
+    : 'both'
+
+  return activities.filter(a => {
+    // Exclusion list
+    if (excludedIds.includes(a.id)) return false
+    if (excludedCats.includes(a.category)) return false
+
+    // Energy ±1 tolerance
+    if (Math.abs(a.energy_required - context.energy) > 1) return false
+
+    // Budget — only show if the minimum cost is within budget
+    if (a.cost_min > effectiveBudget) return false
+
+    // Duration — don't show activities that take longer than available time
+    if (a.duration_mins > context.time) return false
+
+    // Solo/social — derived from vibe
+    if (soloSocialFromVibe === 'solo' && a.solo_social === 'social') return false
+    if (soloSocialFromVibe === 'social' && a.solo_social === 'solo') return false
+
+    return true
+  })
+}
+
+// ── Scoring / ranking ─────────────────────────────────────────────────────────
+// Accepts pre-filtered activities, returns them sorted by match quality.
+// context: { energy, vibe, time, budgetOverride? }
+// settings: { budget_daily, ... }
+// weather: { isRainy, temp } | null
+export function rankActivities(activities, context, settings = {}, weather = null) {
+  const filtered = filterActivities(activities, context, settings)
+  const effectiveBudget = context.budgetOverride ?? settings.budget_daily ?? 50
+  const isBadWeather = weather?.isRainy || (weather?.temp != null && weather.temp < 8)
+
+  return filtered
     .map(a => {
       let score = 0
 
-      // Energy match (±1 is fine, ±2 penalised)
-      const energyDiff = Math.abs(a.energy_required - energy)
-      if (energyDiff === 0) score += 3
+      // Energy — exact match is best, ±1 acceptable (already filtered beyond that)
+      const energyDiff = Math.abs(a.energy_required - context.energy)
+      if (energyDiff === 0) score += 4
       else if (energyDiff === 1) score += 2
-      else if (energyDiff === 2) score += 0
-      else score -= 2
 
-      // Budget fit
-      if (a.cost_min <= budget) score += 2
-      if (a.cost_max <= budget) score += 1
+      // Budget headroom — reward activities well within budget
+      if (a.cost_max <= effectiveBudget) score += 2
+      if (a.cost_min === 0) score += 1
 
-      // Vibe match
-      if (vibe === 'chill' && a.energy_required <= 2) score += 2
-      if (vibe === 'active' && a.energy_required >= 3) score += 2
-      if (vibe === 'social' && (a.solo_social === 'social' || a.solo_social === 'both')) score += 2
-      if (vibe === 'solo' && (a.solo_social === 'solo' || a.solo_social === 'both')) score += 2
-      if (vibe === 'adventurous' && a.tags.some(t => ['adventure', 'exploring', 'spontaneous'].includes(t))) score += 2
-      if (vibe === 'creative' && a.tags.some(t => ['creative', 'art', 'cooking', 'writing'].includes(t))) score += 2
+      // Duration fit — reward activities closer to available time
+      const timeDiff = Math.abs(a.duration_mins - context.time)
+      if (timeDiff <= 15) score += 2
+      else if (timeDiff <= 30) score += 1
 
-      // Solo/social preference
-      if (solo_social === 'solo' && (a.solo_social === 'solo' || a.solo_social === 'both')) score += 1
-      if (solo_social === 'social' && (a.solo_social === 'social' || a.solo_social === 'both')) score += 1
+      // Vibe
+      if (context.vibe === 'chill' && a.energy_required <= 2) score += 3
+      if (context.vibe === 'active' && a.energy_required >= 3) score += 3
+      if (context.vibe === 'social' && (a.solo_social === 'social' || a.solo_social === 'both')) score += 3
+      if (context.vibe === 'solo' && (a.solo_social === 'solo' || a.solo_social === 'both')) score += 3
+      if (context.vibe === 'adventurous' && a.tags.some(t => ['adventure', 'exploring', 'spontaneous'].includes(t))) score += 3
+      if (context.vibe === 'creative' && a.tags.some(t => ['creative', 'art', 'cooking', 'writing'].includes(t))) score += 3
 
-      // Small shuffle to prevent deterministic ordering
-      score += Math.random() * 0.5
+      // Weather — deprioritise outdoor if bad weather; boost indoor
+      if (isBadWeather && a.indoor_outdoor === 'outdoor') score -= 4
+      if (isBadWeather && a.indoor_outdoor === 'indoor') score += 2
+
+      // Shuffle slightly so feed isn't fully deterministic
+      score += Math.random() * 0.8
 
       return { ...a, _score: score }
     })

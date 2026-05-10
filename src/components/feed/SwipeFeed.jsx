@@ -1,25 +1,37 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { Heart, X, Bookmark, Settings } from 'lucide-react'
 import { SwipeCard } from './SwipeCard'
 import { ActivityCard } from '../cards/ActivityCard'
 import { WildcardCard } from '../cards/WildcardCard'
 import { CardDetail } from '../cards/CardDetail'
+import { SwipeFeedback } from '../feedback/SwipeFeedback'
 import { Logo } from '../ui/Logo'
 import { EnergyDots } from '../ui/EnergyDots'
 import { clsx } from 'clsx'
 
 const WILDCARD_THRESHOLD = 5
 
-export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeHistory }) {
-  // Index of the top card; we render top 3 for the stack effect
+export function SwipeFeed({
+  activities,
+  context,
+  onSwipe,
+  onFeedback,
+  onReset,
+  saved,
+  swipeHistory,
+}) {
   const [topIndex, setTopIndex] = useState(activities.length - 1)
   const [leftStreak, setLeftStreak] = useState(0)
   const [showWildcard, setShowWildcard] = useState(false)
   const [selectedActivity, setSelectedActivity] = useState(null)
-  const [swipeIndicator, setSwipeIndicator] = useState(null) // 'left' | 'right' | null
+  const [swipeIndicator, setSwipeIndicator] = useState(null)
   const [isOutOfCards, setIsOutOfCards] = useState(false)
 
-  // One ref per card so action buttons can trigger programmatic swipes
+  // Feedback sheet state — shown after each left swipe
+  const [feedbackActivity, setFeedbackActivity] = useState(null)
+  const lastSwipedActivityRef = useRef(null)
+
   const cardRefs = useRef({})
 
   useEffect(() => {
@@ -27,6 +39,7 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
     setLeftStreak(0)
     setShowWildcard(false)
     setIsOutOfCards(false)
+    setFeedbackActivity(null)
     cardRefs.current = {}
   }, [activities])
 
@@ -34,12 +47,18 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
     setSwipeIndicator(null)
     onSwipe(activity, direction)
 
-    const newStreak = direction === 'left' ? leftStreak + 1 : 0
-    setLeftStreak(newStreak)
+    if (direction === 'left') {
+      lastSwipedActivityRef.current = activity
+      setFeedbackActivity(activity)
 
-    if (direction === 'left' && newStreak >= WILDCARD_THRESHOLD) {
-      setShowWildcard(true)
-      return
+      const newStreak = leftStreak + 1
+      setLeftStreak(newStreak)
+      if (newStreak >= WILDCARD_THRESHOLD) {
+        setShowWildcard(true)
+        return
+      }
+    } else {
+      setLeftStreak(0)
     }
 
     setTopIndex(prev => {
@@ -49,10 +68,18 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
     })
   }, [onSwipe, leftStreak])
 
+  function handleFeedback(reason, permanent) {
+    onFeedback(reason, permanent, lastSwipedActivityRef.current)
+    setFeedbackActivity(null)
+  }
+
+  function handleFeedbackDismiss() {
+    setFeedbackActivity(null)
+  }
+
   function triggerSwipe(direction) {
     if (topIndex < 0 || showWildcard) return
-    const ref = cardRefs.current[topIndex]
-    ref?.swipe(direction)
+    cardRefs.current[topIndex]?.swipe(direction)
   }
 
   function handleWildcardAccept() {
@@ -71,7 +98,7 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
   const canSwipe = topIndex >= 0 && !showWildcard && !isOutOfCards
 
   return (
-    <div className="flex flex-col min-h-dvh bg-cream">
+    <div className="flex flex-col min-h-dvh bg-cream pb-20">
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 pt-6 pb-2 safe-top flex-shrink-0">
         <div>
@@ -96,11 +123,12 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
 
       {/* Context pills */}
       <div className="flex gap-2 px-5 pb-3 overflow-x-auto flex-shrink-0">
-        <Pill>£{context.budget === 0 ? '0' : `≤${context.budget}`}</Pill>
-        <Pill className="capitalize">{context.vibe}</Pill>
-        <Pill className="capitalize">
-          {context.solo_social === 'both' ? 'Solo or social' : context.solo_social}
+        <Pill>
+          {context.budgetOverride != null
+            ? `£${context.budgetOverride} today`
+            : `£${context.defaultBudget ?? '?'} default`}
         </Pill>
+        <Pill className="capitalize">{context.vibe}</Pill>
         {saved.length > 0 && (
           <span className="flex-shrink-0 bg-orange/10 border border-orange/20 text-orange text-xs font-body px-3 py-1 rounded-full">
             {saved.length} saved
@@ -117,16 +145,14 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
             <WildcardCard onAccept={handleWildcardAccept} />
           ) : (
             <>
-              {/* Swipe hint labels */}
               <SwipeLabel side="left" visible={swipeIndicator === 'right'}>YESSS</SwipeLabel>
               <SwipeLabel side="right" visible={swipeIndicator === 'left'}>NOPE</SwipeLabel>
 
-              {/* Render top 3 cards, back-to-front */}
-              {[topIndex - 2, topIndex - 1, topIndex].map((idx) => {
+              {[topIndex - 2, topIndex - 1, topIndex].map(idx => {
                 if (idx < 0 || idx >= activities.length) return null
                 const activity = activities[idx]
                 const isTop = idx === topIndex
-                const offset = topIndex - idx // 0 = top, 1 = second, 2 = third
+                const offset = topIndex - idx
 
                 return (
                   <div
@@ -144,13 +170,10 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
                     {isTop ? (
                       <SwipeCard
                         ref={el => { if (el) cardRefs.current[idx] = el }}
-                        onSwipe={(dir) => handleSwipe(dir, activity)}
-                        onDirectionChange={isTop ? setSwipeIndicator : undefined}
+                        onSwipe={dir => handleSwipe(dir, activity)}
+                        onDirectionChange={setSwipeIndicator}
                       >
-                        <div
-                          className="w-full h-full"
-                          onClick={() => setSelectedActivity(activity)}
-                        >
+                        <div className="w-full h-full" onClick={() => setSelectedActivity(activity)}>
                           <ActivityCard activity={activity} />
                         </div>
                       </SwipeCard>
@@ -167,7 +190,7 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
 
       {/* Action buttons */}
       {!isOutOfCards && !showWildcard && (
-        <div className="flex items-center justify-center gap-8 px-5 py-5 safe-bottom flex-shrink-0">
+        <div className="flex items-center justify-center gap-8 px-5 py-5 flex-shrink-0">
           <ActionButton
             icon={<X size={28} />}
             label="Nope"
@@ -186,15 +209,23 @@ export function SwipeFeed({ activities, context, onSwipe, onReset, saved, swipeH
         </div>
       )}
 
-      {/* Detail sheet */}
+      {/* Left-swipe feedback sheet */}
+      <AnimatePresence>
+        {feedbackActivity && (
+          <SwipeFeedback
+            activity={feedbackActivity}
+            onFeedback={handleFeedback}
+            onDismiss={handleFeedbackDismiss}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Card detail sheet */}
       {selectedActivity && (
         <CardDetail
           activity={selectedActivity}
           onClose={() => setSelectedActivity(null)}
-          onSave={() => {
-            onSwipe(selectedActivity, 'right')
-            setSelectedActivity(null)
-          }}
+          onSave={() => { onSwipe(selectedActivity, 'right'); setSelectedActivity(null) }}
           onDismiss={() => setSelectedActivity(null)}
         />
       )}
@@ -266,9 +297,9 @@ function EmptyState({ onReset }) {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-8">
       <div className="text-5xl mb-4">🌿</div>
-      <h3 className="font-display text-xl font-semibold text-ink mb-2">You've seen the lot.</h3>
+      <h3 className="font-display text-xl font-semibold text-ink mb-2">You&rsquo;ve seen the lot.</h3>
       <p className="font-body text-stone-dark text-sm leading-relaxed mb-6">
-        Very thorough of you. Perhaps you'd like to change things up a bit?
+        Very thorough of you. Perhaps you&rsquo;d like to change things up a bit?
       </p>
       <button onClick={onReset} className="btn-primary">Start fresh</button>
     </div>
