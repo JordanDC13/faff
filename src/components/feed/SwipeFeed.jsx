@@ -31,7 +31,7 @@ export function SwipeFeed({
 
   const [feedbackActivity, setFeedbackActivity] = useState(null)
   const lastSwipedActivityRef = useRef(null)
-  const cardRefs = useRef({})
+  const topCardRef = useRef(null)
 
   useEffect(() => {
     setTopIndex(activities.length - 1)
@@ -39,7 +39,7 @@ export function SwipeFeed({
     setShowWildcard(startWithWildcard)
     setIsOutOfCards(false)
     setFeedbackActivity(null)
-    cardRefs.current = {}
+    topCardRef.current = null
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activities])
 
@@ -73,8 +73,8 @@ export function SwipeFeed({
   }
 
   function triggerSwipe(direction) {
-    if (topIndex < 0 || showWildcard) return
-    cardRefs.current[topIndex]?.swipe(direction)
+    if (!canSwipe) return
+    topCardRef.current?.swipe(direction)
   }
 
   function handleWildcardAccept() {
@@ -169,11 +169,11 @@ export function SwipeFeed({
                   >
                     {isTop ? (
                       <SwipeCard
-                        ref={el => { if (el) cardRefs.current[idx] = el }}
+                        ref={topCardRef}
                         onSwipe={dir => handleSwipe(dir, activity)}
                         onDirectionChange={setSwipeIndicator}
                       >
-                        <div className="w-full h-full" onClick={() => setSelectedActivity(activity)}>
+                        <div className="w-full h-full" onClick={() => { if (!topCardRef.current?.isDragging()) setSelectedActivity(activity) }}>
                           <ActivityCard activity={activity} />
                         </div>
                       </SwipeCard>
@@ -247,8 +247,10 @@ function ActionButton({ icon, label, variant, onClick, disabled }) {
   return (
     <button
       onClick={onClick}
+      onPointerDown={e => e.stopPropagation()}
       disabled={disabled}
       aria-label={label}
+      style={{ touchAction: 'auto', position: 'relative', zIndex: 50 }}
       className={clsx(
         'flex flex-col items-center rounded-full p-4 border-2 shadow-card transition-all duration-200 active:scale-90',
         variant === 'orange'

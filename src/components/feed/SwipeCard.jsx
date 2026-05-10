@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useImperativeHandle, useRef } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 
 const SWIPE_THRESHOLD = 100
@@ -9,18 +9,18 @@ export const SwipeCard = forwardRef(function SwipeCard(
   ref,
 ) {
   const x = useMotionValue(0)
-  const [dragging, setDragging] = useState(false)
+  const isDraggingRef = useRef(false)
 
   const rotate = useTransform(x, [-300, 300], [-ROTATION_FACTOR, ROTATION_FACTOR])
   const opacity = useTransform(x, [-250, -150, 0, 150, 250], [0, 1, 1, 1, 0])
 
-  // Expose programmatic swipe to parent via ref
   useImperativeHandle(ref, () => ({
     swipe: async (direction) => {
       const target = direction === 'right' ? 600 : -600
       await animate(x, target, { duration: 0.3, ease: 'easeOut' })
       onSwipe?.(direction)
     },
+    isDragging: () => isDraggingRef.current,
   }))
 
   function handleDrag(_, info) {
@@ -31,12 +31,9 @@ export const SwipeCard = forwardRef(function SwipeCard(
   }
 
   async function handleDragEnd(_, info) {
-    setDragging(false)
     onDirectionChange?.(null)
-
     const offset = info.offset.x
     const velocity = info.velocity.x
-
     const shouldRight = offset > SWIPE_THRESHOLD || velocity > 500
     const shouldLeft = offset < -SWIPE_THRESHOLD || velocity < -500
 
@@ -49,15 +46,16 @@ export const SwipeCard = forwardRef(function SwipeCard(
     } else {
       animate(x, 0, { type: 'spring', stiffness: 300, damping: 28 })
     }
+    setTimeout(() => { isDraggingRef.current = false }, 10)
   }
 
   return (
     <motion.div
-      style={{ x, rotate, opacity, touchAction: 'none' }}
+      style={{ x, rotate, opacity, touchAction: 'pan-y' }}
       drag={disabled ? false : 'x'}
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.9}
-      onDragStart={() => setDragging(true)}
+      onDragStart={() => { isDraggingRef.current = true }}
       onDrag={handleDrag}
       onDragEnd={handleDragEnd}
       className="absolute inset-0 cursor-grab active:cursor-grabbing"
