@@ -135,9 +135,10 @@ export function SwipeFeed({
         )}
       </div>
 
-      {/* Card area — min-h-0 lets flex-1 shrink below its content so cards never overlap the buttons */}
-      <div className="flex-1 min-h-0 relative px-5">
-        <div className="relative h-full" style={{ maxHeight: '520px' }}>
+      {/* Card area — explicit height so cards are always visible. Buttons sit above
+          cards via z-30, so no pointer-event interception even if cards overflow. */}
+      <div className="flex-1 relative px-5">
+        <div className="relative" style={{ height: 'min(520px, 68vh)' }}>
           {isOutOfCards && !showWildcard ? (
             <EmptyState onReset={onReset} />
           ) : showWildcard ? (

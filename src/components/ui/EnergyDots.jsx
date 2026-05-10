@@ -12,22 +12,20 @@ export function EnergyDots({ value, max = 5, onChange, size = 'md' }) {
       {Array.from({ length: max }, (_, i) => {
         const filled = i < value
         const dotNum = i + 1
+        // Use <span> in read-only contexts so we never nest <button> inside <button>
+        const Tag = onChange ? 'button' : 'span'
         return (
-          <button
+          <Tag
             key={i}
-            type="button"
-            onClick={() => onChange?.(dotNum)}
-            disabled={!onChange}
+            type={onChange ? 'button' : undefined}
+            onClick={onChange ? () => onChange(dotNum) : undefined}
             className={clsx(
-              'rounded-full transition-all duration-200',
+              'rounded-full transition-all duration-200 block',
               sizes[size],
-              filled
-                ? 'bg-orange dot-active'
-                : 'bg-stone-light',
-              onChange && 'cursor-pointer hover:scale-110 active:scale-95',
-              !onChange && 'cursor-default',
+              filled ? 'bg-orange dot-active' : 'bg-stone-light',
+              onChange ? 'cursor-pointer hover:scale-110 active:scale-95' : 'cursor-default',
             )}
-            aria-label={onChange ? `Set energy to ${dotNum}` : `Energy ${dotNum}`}
+            aria-label={onChange ? `Set energy to ${dotNum}` : undefined}
           />
         )
       })}
