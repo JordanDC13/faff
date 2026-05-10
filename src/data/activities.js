@@ -822,11 +822,10 @@ export function filterActivities(activities, context, settings = {}) {
   const excludedIds = settings.excluded_activity_ids ?? []
   const excludedCats = settings.excluded_categories ?? []
 
-  // Vibe → solo/social mapping (vibe encodes this in the simplified context)
-  const soloSocialFromVibe =
-    context.vibe === 'solo' ? 'solo'
-    : context.vibe === 'social' ? 'social'
-    : 'both'
+  // solo_social: explicit preset override takes priority; otherwise derived from vibe
+  const soloSocialFilter =
+    context.solo_social ??
+    (context.vibe === 'solo' ? 'solo' : context.vibe === 'social' ? 'social' : 'both')
 
   return activities.filter(a => {
     // Exclusion list
@@ -842,9 +841,9 @@ export function filterActivities(activities, context, settings = {}) {
     // Duration — don't show activities that take longer than available time
     if (a.duration_mins > context.time) return false
 
-    // Solo/social — derived from vibe
-    if (soloSocialFromVibe === 'solo' && a.solo_social === 'social') return false
-    if (soloSocialFromVibe === 'social' && a.solo_social === 'solo') return false
+    // Solo/social
+    if (soloSocialFilter === 'solo' && a.solo_social === 'social') return false
+    if (soloSocialFilter === 'social' && a.solo_social === 'solo') return false
 
     return true
   })

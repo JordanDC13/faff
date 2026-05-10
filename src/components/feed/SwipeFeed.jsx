@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import { Heart, X, Bookmark, Settings } from 'lucide-react'
+import { Heart, X, Bookmark } from 'lucide-react'
 import { SwipeCard } from './SwipeCard'
 import { ActivityCard } from '../cards/ActivityCard'
 import { WildcardCard } from '../cards/WildcardCard'
@@ -20,27 +20,27 @@ export function SwipeFeed({
   onReset,
   saved,
   swipeHistory,
+  startWithWildcard = false,
 }) {
   const [topIndex, setTopIndex] = useState(activities.length - 1)
   const [leftStreak, setLeftStreak] = useState(0)
-  const [showWildcard, setShowWildcard] = useState(false)
+  const [showWildcard, setShowWildcard] = useState(startWithWildcard)
   const [selectedActivity, setSelectedActivity] = useState(null)
   const [swipeIndicator, setSwipeIndicator] = useState(null)
   const [isOutOfCards, setIsOutOfCards] = useState(false)
 
-  // Feedback sheet state — shown after each left swipe
   const [feedbackActivity, setFeedbackActivity] = useState(null)
   const lastSwipedActivityRef = useRef(null)
-
   const cardRefs = useRef({})
 
   useEffect(() => {
     setTopIndex(activities.length - 1)
     setLeftStreak(0)
-    setShowWildcard(false)
+    setShowWildcard(startWithWildcard)
     setIsOutOfCards(false)
     setFeedbackActivity(null)
     cardRefs.current = {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activities])
 
   const handleSwipe = useCallback((direction, activity) => {
@@ -50,7 +50,6 @@ export function SwipeFeed({
     if (direction === 'left') {
       lastSwipedActivityRef.current = activity
       setFeedbackActivity(activity)
-
       const newStreak = leftStreak + 1
       setLeftStreak(newStreak)
       if (newStreak >= WILDCARD_THRESHOLD) {
@@ -70,10 +69,6 @@ export function SwipeFeed({
 
   function handleFeedback(reason, permanent) {
     onFeedback(reason, permanent, lastSwipedActivityRef.current)
-    setFeedbackActivity(null)
-  }
-
-  function handleFeedbackDismiss() {
     setFeedbackActivity(null)
   }
 
@@ -97,6 +92,9 @@ export function SwipeFeed({
   const personalised = swipeHistory.length >= 10
   const canSwipe = topIndex >= 0 && !showWildcard && !isOutOfCards
 
+  // ── Derive a human-readable mood label from context ──────────────────────
+  const moodLabel = context.moodLabel ?? context.vibe ?? null
+
   return (
     <div className="flex flex-col min-h-dvh bg-cream pb-20">
       {/* Top bar */}
@@ -107,28 +105,29 @@ export function SwipeFeed({
             <p className="font-body text-xs text-orange mt-0.5">Personalised for you ✦</p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        {/* Energy + change context */}
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 bg-white rounded-full px-3 py-1.5 border border-stone-light">
             <EnergyDots value={context.energy} size="sm" />
           </div>
           <button
             onClick={onReset}
-            className="p-2 text-stone-dark hover:text-ink transition-colors"
-            aria-label="Change context"
+            className="font-body text-xs text-stone-dark hover:text-orange transition-colors px-2 py-1"
           >
-            <Settings size={20} />
+            change
           </button>
         </div>
       </div>
 
       {/* Context pills */}
       <div className="flex gap-2 px-5 pb-3 overflow-x-auto flex-shrink-0">
+        {moodLabel && <Pill className="capitalize">{moodLabel}</Pill>}
         <Pill>
-          {context.budgetOverride != null
-            ? `£${context.budgetOverride} today`
-            : `£${context.defaultBudget ?? '?'} default`}
+          {(context.budgetOverride ?? context.defaultBudget) != null
+            ? `£${context.budgetOverride ?? context.defaultBudget}`
+            : '£?'}
+          {context.budgetOverride != null ? ' today' : ''}
         </Pill>
-        <Pill className="capitalize">{context.vibe}</Pill>
         {saved.length > 0 && (
           <span className="flex-shrink-0 bg-orange/10 border border-orange/20 text-orange text-xs font-body px-3 py-1 rounded-full">
             {saved.length} saved
@@ -145,7 +144,7 @@ export function SwipeFeed({
             <WildcardCard onAccept={handleWildcardAccept} />
           ) : (
             <>
-              <SwipeLabel side="left" visible={swipeIndicator === 'right'}>YESSS</SwipeLabel>
+              <SwipeLabel side="left"  visible={swipeIndicator === 'right'}>YESSS</SwipeLabel>
               <SwipeLabel side="right" visible={swipeIndicator === 'left'}>NOPE</SwipeLabel>
 
               {[topIndex - 2, topIndex - 1, topIndex].map(idx => {
@@ -191,21 +190,9 @@ export function SwipeFeed({
       {/* Action buttons */}
       {!isOutOfCards && !showWildcard && (
         <div className="flex items-center justify-center gap-8 px-5 py-5 flex-shrink-0">
-          <ActionButton
-            icon={<X size={28} />}
-            label="Nope"
-            variant="stone"
-            onClick={() => triggerSwipe('left')}
-            disabled={!canSwipe}
-          />
+          <ActionButton icon={<X size={28} />}     label="Nope" variant="stone"  onClick={() => triggerSwipe('left')}  disabled={!canSwipe} />
           <SavedBadge count={saved.length} />
-          <ActionButton
-            icon={<Heart size={28} />}
-            label="Yes!"
-            variant="orange"
-            onClick={() => triggerSwipe('right')}
-            disabled={!canSwipe}
-          />
+          <ActionButton icon={<Heart size={28} />} label="Yes!" variant="orange" onClick={() => triggerSwipe('right')} disabled={!canSwipe} />
         </div>
       )}
 
@@ -215,7 +202,7 @@ export function SwipeFeed({
           <SwipeFeedback
             activity={feedbackActivity}
             onFeedback={handleFeedback}
-            onDismiss={handleFeedbackDismiss}
+            onDismiss={() => setFeedbackActivity(null)}
           />
         )}
       </AnimatePresence>
@@ -245,13 +232,11 @@ function Pill({ children, className = '' }) {
 
 function SwipeLabel({ side, visible, children }) {
   return (
-    <div
-      className={clsx(
-        'absolute top-1/3 z-30 font-display text-2xl font-bold px-5 py-2 rounded-2xl pointer-events-none transition-opacity duration-100',
-        side === 'left' ? 'left-3 -rotate-12 bg-orange text-cream' : 'right-3 rotate-12 bg-stone text-ink',
-        visible ? 'opacity-100' : 'opacity-0',
-      )}
-    >
+    <div className={clsx(
+      'absolute top-1/3 z-30 font-display text-2xl font-bold px-5 py-2 rounded-2xl pointer-events-none transition-opacity duration-100',
+      side === 'left' ? 'left-3 -rotate-12 bg-orange text-cream' : 'right-3 rotate-12 bg-stone text-ink',
+      visible ? 'opacity-100' : 'opacity-0',
+    )}>
       {children}
     </div>
   )
@@ -264,8 +249,7 @@ function ActionButton({ icon, label, variant, onClick, disabled }) {
       disabled={disabled}
       aria-label={label}
       className={clsx(
-        'flex flex-col items-center rounded-full p-4 border-2 shadow-card',
-        'transition-all duration-200 active:scale-90',
+        'flex flex-col items-center rounded-full p-4 border-2 shadow-card transition-all duration-200 active:scale-90',
         variant === 'orange'
           ? 'bg-white border-orange text-orange hover:bg-orange/5'
           : 'bg-white border-stone text-stone-dark hover:bg-stone-light/50',
@@ -299,7 +283,7 @@ function EmptyState({ onReset }) {
       <div className="text-5xl mb-4">🌿</div>
       <h3 className="font-display text-xl font-semibold text-ink mb-2">You&rsquo;ve seen the lot.</h3>
       <p className="font-body text-stone-dark text-sm leading-relaxed mb-6">
-        Very thorough of you. Perhaps you&rsquo;d like to change things up a bit?
+        Very thorough. Perhaps change things up a bit?
       </p>
       <button onClick={onReset} className="btn-primary">Start fresh</button>
     </div>
